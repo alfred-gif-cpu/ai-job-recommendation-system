@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Job Recommender</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+<div class="main-container">
+
+<h1>✨ AI Job Recommendation System</h1>
+<p class="subtitle">Upload Resume or Enter Skills</p>
+
+<form method="POST" enctype="multipart/form-data">
+
+<label for="skills" class="hidden">Skills</label>
+<input type="text" id="skills" name="skills"
+placeholder="python, sql, machine learning">
+
+<p class="divider">OR</p>
+
+<label for="resume" class="hidden">Resume</label>
+<input type="file" id="resume" name="resume" accept=".pdf">
+
+<button type="submit">Find Jobs</button>
+
+</form>
+
+<!-- DETECTED SKILLS -->
+{% if detected_skills %}
+<div class="skills-box">
+<h3>🧠 Detected Skills</h3>
+{% for skill in detected_skills %}
+<span class="skill-tag">{{ skill }}</span>
+{% endfor %}
+</div>
+{% endif %}
+
+<!-- RESULTS -->
+{% if results %}
+<h2>Recommended Jobs</h2>
+
+{% for job in results %}
+<div class="card">
+
+<div class="score-bar">
+<div class="fill" style="width: {{ job.score }}%"></div>
+</div>
+
+<h3>Match {{ job.score }}%</h3>
+
+{% if job.india_job %}
+<p class="india">🇮🇳 India Preferred</p>
+{% else %}
+<p class="global">🌍 Global</p>
+{% endif %}
+
+<p><b>Required Skills:</b> {{ job.skills }}</p>
+<p><b>Missing Skills:</b> {{ job.missing_skills }}</p>
+<p>{{ job.summary }}</p>
+
+</div>
+{% endfor %}
+{% endif %}
+
+</div>
+
+</body>
+</html>

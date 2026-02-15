@@ -1,0 +1,204 @@
+/* ===============================
+   GLOBAL BACKGROUND (ANIMATED)
+================================ */
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    color: #f8fafc;
+    background: linear-gradient(-45deg,#020617,#0f172a,#111827,#1e1b4b);
+    background-size: 400% 400%;
+    animation: gradientMove 14s ease infinite;
+}
+
+@keyframes gradientMove {
+    0% {background-position:0% 50%;}
+    50% {background-position:100% 50%;}
+    100% {background-position:0% 50%;}
+}
+
+/* ===============================
+   MAIN CONTAINER
+================================ */
+
+.main-container {
+    width: 72%;
+    margin: auto;
+    margin-top: 45px;
+    text-align: center;
+}
+
+/* ===============================
+   TITLE (GLOW EFFECT)
+================================ */
+
+h1 {
+    font-size: 46px;
+    margin-bottom: 6px;
+    background: linear-gradient(90deg,#38bdf8,#818cf8,#c084fc);
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+    from { filter: drop-shadow(0 0 6px rgba(56,189,248,0.5)); }
+    to   { filter: drop-shadow(0 0 16px rgba(192,132,252,0.8)); }
+}
+
+.subtitle {
+    opacity: 0.75;
+    margin-bottom: 30px;
+    font-size: 16px;
+}
+
+/* ===============================
+   GLASS FORM
+================================ */
+
+form {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 28px;
+    border-radius: 18px;
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 0 35px rgba(56,189,248,0.15);
+    animation: fadeIn 0.8s ease;
+}
+
+input {
+    width: 72%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    margin-top: 10px;
+    background: rgba(255,255,255,0.08);
+    color: white;
+    transition: 0.3s;
+}
+
+input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px #38bdf8;
+}
+
+/* ===============================
+   PREMIUM BUTTON
+================================ */
+
+button {
+    margin-top: 16px;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(90deg,#3b82f6,#8b5cf6);
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0 22px rgba(139,92,246,0.6);
+}
+
+.divider {
+    margin: 14px;
+    opacity: 0.6;
+}
+
+/* ===============================
+   SKILL TAGS
+================================ */
+
+.skills-box {
+    margin-top: 25px;
+    animation: fadeIn 0.8s ease;
+}
+
+.skill-tag {
+    display: inline-block;
+    margin: 5px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    background: linear-gradient(90deg,#2563eb,#7c3aed);
+    font-size: 14px;
+    box-shadow: 0 0 8px rgba(124,58,237,0.5);
+}
+
+/* ===============================
+   RESULT CARDS (FLOATING)
+================================ */
+
+.card {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 14px;
+    text-align: left;
+    transition: all 0.35s;
+    animation: fadeInUp 0.6s ease;
+    box-shadow: 0 0 20px rgba(56,189,248,0.08);
+}
+
+.card:hover {
+    transform: translateY(-8px) scale(1.01);
+    box-shadow: 0 0 28px rgba(56,189,248,0.25);
+}
+
+/* ===============================
+   SCORE BAR (ANIMATED)
+================================ */
+
+.score-bar {
+    height: 8px;
+    background: #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.fill {
+    height: 100%;
+    background: linear-gradient(90deg,#22d3ee,#8b5cf6);
+    animation: growBar 1.5s ease;
+}
+
+@keyframes growBar {
+    from {width:0;}
+}
+
+/* ===============================
+   TAG COLORS
+================================ */
+
+.india {
+    color: #22c55e;
+    font-weight: bold;
+}
+
+.global {
+    color: #facc15;
+    font-weight: bold;
+}
+
+/* ===============================
+   ANIMATIONS
+================================ */
+
+@keyframes fadeIn {
+    from {opacity:0;}
+    to {opacity:1;}
+}
+
+@keyframes fadeInUp {
+    from {opacity:0; transform:translateY(15px);}
+    to {opacity:1; transform:translateY(0);}
+}
+
+.hidden {
+    display:none;
+}
