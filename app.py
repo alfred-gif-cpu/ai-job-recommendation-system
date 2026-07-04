@@ -109,8 +109,10 @@ def home():
                         "Try typing your skills instead."
                     )
                 elif detected_skills:
-                    results, message, live_ok = find_jobs(
-                        ", ".join(detected_skills), live, where)
+                    # Carry the detected skills into the text box so the user can
+                    # change the city / re-search without re-uploading the resume.
+                    skills_input = ", ".join(detected_skills)
+                    results, message, live_ok = find_jobs(skills_input, live, where)
     else:
         # GET: support shareable links like /?skills=python,sql&live=1&where=Pune
         skills_input = (request.args.get("skills") or "").strip()
