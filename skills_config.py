@@ -18,7 +18,16 @@ SKILL_LIST = [
 ]
 
 
+# Precompile a matcher per skill. We bound each skill with alphanumeric
+# look-arounds instead of \b so skills ending/starting in punctuation (e.g.
+# "c++") still match — \b never matches after a "+".
+_SKILL_PATTERNS = [
+    (skill, re.compile(r"(?<![a-z0-9])" + re.escape(skill) + r"(?![a-z0-9])"))
+    for skill in SKILL_LIST
+]
+
+
 def extract_skills(text):
-    """Return the master-list skills found as whole words in ``text``."""
+    """Return the master-list skills found as whole tokens in ``text``."""
     text = str(text).lower()
-    return [s for s in SKILL_LIST if re.search(r"\b" + re.escape(s) + r"\b", text)]
+    return [skill for skill, pat in _SKILL_PATTERNS if pat.search(text)]
