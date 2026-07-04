@@ -70,7 +70,7 @@ def _format_salary(job):
     return text + "/yr"
 
 
-def fetch_live_jobs(user_skills, where="", limit=24):
+def fetch_live_jobs(user_skills, where="", limit=50):
     """Return (results, error). ``error`` is "" on success. India only."""
     app_id = os.getenv("ADZUNA_APP_ID")
     app_key = os.getenv("ADZUNA_APP_KEY")
@@ -96,7 +96,7 @@ def fetch_live_jobs(user_skills, where="", limit=24):
         "app_id": app_id,
         "app_key": app_key,
         "what_or": " ".join(user_set),
-        "results_per_page": limit,
+        "results_per_page": min(limit, 50),  # Adzuna caps a single page at 50
         "content-type": "application/json",
     }
     if where:
