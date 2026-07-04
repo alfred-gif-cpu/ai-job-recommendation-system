@@ -4,69 +4,490 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Job Recommender</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
+<script>
+// apply saved theme before paint to avoid flash
+(function () {
+  var t = localStorage.getItem('theme');
+  if (!t) t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  if (t === 'light') document.documentElement.classList.add('light');
+})();
+</script>
 </head>
 
-<body>
+<body data-query="{{ skills_input }}">
+
+<!-- ambient background orbs -->
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<!-- theme toggle -->
+<button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">
+<span class="tt-icon">🌙</span>
+</button>
 
 <div class="main-container">
 
-<h1>✨ AI Job Recommendation System</h1>
-<p class="subtitle">Upload Resume or Enter Skills</p>
+<header class="hero">
+<span class="badge">⚡ AI-Powered Matching</span>
+<h1>Find your next role</h1>
+<p class="subtitle">Enter your skills or drop in your resume — we'll match you to the best-fitting jobs.</p>
+</header>
 
-<form method="POST" enctype="multipart/form-data">
+<form method="POST" enctype="multipart/form-data" id="job-form">
 
+<div class="tabs" role="tablist">
+<button type="button" class="tab active" data-target="pane-skills">✍️ Enter Skills</button>
+<button type="button" class="tab" data-target="pane-resume">📄 Upload Resume</button>
+</div>
+
+<div class="pane active" id="pane-skills">
 <label for="skills" class="hidden">Skills</label>
 <input type="text" id="skills" name="skills"
-placeholder="python, sql, machine learning">
+value="{{ skills_input }}"
+placeholder="e.g. python, sql, machine learning">
+<div class="quick-tags">
+<span class="quick" data-skill="python">python</span>
+<span class="quick" data-skill="sql">sql</span>
+<span class="quick" data-skill="machine learning">machine learning</span>
+<span class="quick" data-skill="react">react</span>
+<span class="quick" data-skill="aws">aws</span>
+</div>
+</div>
 
-<p class="divider">OR</p>
+<div class="pane" id="pane-resume">
+<label for="resume" class="dropzone" id="dropzone">
+<span class="dz-icon">⬆️</span>
+<span class="dz-text" id="dz-text">Click to upload your resume (PDF)</span>
+</label>
+<input type="file" id="resume" name="resume" accept=".pdf" class="hidden">
+</div>
 
-<label for="resume" class="hidden">Resume</label>
-<input type="file" id="resume" name="resume" accept=".pdf">
+<label class="live-toggle">
+<input type="checkbox" name="live" id="live" value="on" {% if live_requested %}checked{% endif %}>
+<span class="live-track"><span class="live-thumb"></span></span>
+<span class="live-label">🔴 Live jobs <em>(real-time, India · Adzuna)</em></span>
+</label>
 
-<button type="submit">Find Jobs</button>
+<div class="live-options {% if not live_requested %}collapsed{% endif %}" id="live-options">
+<label class="lo-field">
+<span>📍 City</span>
+<select name="where" id="where" class="sort-select">
+{% for value, label in cities %}
+<option value="{{ value }}" {% if value == where %}selected{% endif %}>{{ label }}</option>
+{% endfor %}
+</select>
+</label>
+</div>
+
+<button type="submit" class="submit-btn" id="submit-btn">
+<span class="btn-label">Find Jobs</span>
+<span class="spinner"></span>
+</button>
 
 </form>
+
+<!-- RECENT SEARCHES (populated from localStorage) -->
+<div class="recent hidden" id="recent-box">
+<span class="recent-title">Recent:</span>
+<span class="recent-chips" id="recent-chips"></span>
+<button type="button" class="recent-clear" id="recent-clear" title="Clear recent searches">✕</button>
+</div>
+
+<!-- MESSAGE / ERROR -->
+{% if message %}
+<div class="message">{{ message }}</div>
+{% endif %}
 
 <!-- DETECTED SKILLS -->
 {% if detected_skills %}
 <div class="skills-box">
+<div class="skills-head">
 <h3>🧠 Detected Skills</h3>
+<button class="copy-btn" id="copy-skills" type="button" data-skills="{{ detected_skills | join(', ') }}">📋 Copy</button>
+</div>
+<div class="chip-row">
 {% for skill in detected_skills %}
 <span class="skill-tag">{{ skill }}</span>
 {% endfor %}
+</div>
 </div>
 {% endif %}
 
 <!-- RESULTS -->
 {% if results %}
-<h2>Recommended Jobs</h2>
-
-{% for job in results %}
-<div class="card">
-
-<div class="score-bar">
-<div class="fill" style="width: {{ job.score }}%"></div>
+<div class="results-head">
+<h2>Recommended Jobs {% if live_on %}<span class="live-badge">● LIVE</span>{% endif %}</h2>
+<div class="head-right">
+<span class="count" id="result-count">{{ results|length }} matches</span>
+<button type="button" class="share-btn" id="share-btn"
+data-skills="{{ skills_input if skills_input else (detected_skills | join(', ')) }}"
+data-live="{{ '1' if live_on else '' }}"
+data-where="{{ where }}">🔗 Share</button>
+</div>
 </div>
 
-<h3>Match {{ job.score }}%</h3>
+<div class="toolbar">
+<div class="filter-pills" role="group" aria-label="Filter jobs">
+<button type="button" class="fpill active" data-filter="all" aria-pressed="true">All</button>
+<button type="button" class="fpill" data-filter="india" aria-pressed="false">🇮🇳 India only</button>
+<button type="button" class="fpill" data-filter="remote" aria-pressed="false">🏠 Remote only</button>
+{% if live_on %}<button type="button" class="fpill" data-filter="hassalary" aria-pressed="false">💰 With salary</button>{% endif %}
+</div>
+<label class="sort-wrap">
+<span>Sort</span>
+<select class="sort-select" id="sort-select">
+<option value="desc">Best match</option>
+<option value="asc">Lowest match</option>
+{% if live_on %}
+<option value="sal-desc">Salary: high to low</option>
+<option value="sal-asc">Salary: low to high</option>
+{% endif %}
+</select>
+</label>
+</div>
 
+<div id="results-list">
+{% for job in results %}
+<div class="card" data-score="{{ job.score }}" data-india="{{ 1 if job.india_job else 0 }}" data-remote="{{ 1 if job.remote else 0 }}" data-hassalary="{{ 1 if job.salary else 0 }}" data-salary="{{ job.salary_value | default(0) }}">
+
+<div class="card-main">
+<div class="card-head">
+<h3 class="job-title">{{ job.title }}</h3>
+{% if job.company %}<p class="company">🏢 {{ job.company }}{% if job.location %} · 📍 {{ job.location }}{% endif %}</p>{% endif %}
+{% if job.salary %}<p class="salary">💰 {{ job.salary }}</p>{% endif %}
+<div class="tags">
 {% if job.india_job %}
-<p class="india">🇮🇳 India Preferred</p>
+<span class="pill india">🇮🇳 India Preferred</span>
 {% else %}
-<p class="global">🌍 Global</p>
+<span class="pill global">🌍 Global</span>
+{% endif %}
+{% if job.remote %}<span class="pill remote">🏠 Remote</span>{% endif %}
+</div>
+</div>
+
+<p class="summary">{{ job.summary }}…</p>
+
+{% if job.required_count %}
+<div class="skill-meter" title="{{ job.matched_count }} of {{ job.required_count }} required skills matched">
+<div class="meter-track"><div class="meter-fill" style="width: {{ (job.matched_count / job.required_count * 100) | round | int }}%"></div></div>
+<span class="meter-label">{{ job.matched_count }}/{{ job.required_count }} skills</span>
+</div>
 {% endif %}
 
-<p><b>Required Skills:</b> {{ job.skills }}</p>
-<p><b>Missing Skills:</b> {{ job.missing_skills }}</p>
-<p>{{ job.summary }}</p>
+<div class="skill-section">
+<p class="label">Required</p>
+<div class="chip-row">
+{% for s in job.skills.split(',') %}{% if s.strip() %}<span class="mini-chip have">{{ s.strip() }}</span>{% endif %}{% endfor %}
+</div>
+</div>
+
+{% if job.missing_skills %}
+<div class="skill-section">
+<p class="label">Skills to Learn</p>
+<div class="chip-row">
+{% for s in job.missing_skills.split(',') %}{% if s.strip() %}<span class="mini-chip miss">{{ s.strip() }}</span>{% endif %}{% endfor %}
+</div>
+</div>
+{% endif %}
+
+{% if job.link %}
+<a class="apply-btn" href="{{ job.link }}" target="_blank" rel="noopener noreferrer">Apply / View Job →</a>
+{% endif %}
+</div>
+
+<div class="ring" style="--val: {{ [job.score, 100] | min }}" tabindex="0">
+<div class="ring-inner">
+<span class="ring-val">{{ job.score | round | int }}<small>%</small></span>
+<span class="ring-label">match</span>
+</div>
+<div class="ring-tip">
+<span class="tip-row"><b>Skill match</b><span>{{ job.base_score | round | int }}%</span></span>
+{% if job.india_bonus %}<span class="tip-row"><b>🇮🇳 India bonus</b><span>+{{ job.india_bonus }}%</span></span>{% endif %}
+<span class="tip-row"><b>Skills matched</b><span>{{ job.matched_count }} / {{ job.required_count }}</span></span>
+</div>
+</div>
 
 </div>
 {% endfor %}
+</div>
+
+<div class="no-visible hidden" id="no-visible">No jobs match this filter.</div>
+
+<button type="button" class="show-more hidden" id="show-more">Show more ↓</button>
 {% endif %}
 
 </div>
+
+<script>
+// ---- clipboard helper (with fallback for restricted contexts) ----
+function copyText(text) {
+  var viaApi = (navigator.clipboard && navigator.clipboard.writeText)
+    ? navigator.clipboard.writeText(text)
+    : Promise.reject();
+  return viaApi.catch(function () {
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      ok ? resolve() : reject();
+    });
+  });
+}
+
+// ---- theme toggle ----
+(function () {
+  var btn = document.getElementById('theme-toggle');
+  var icon = btn.querySelector('.tt-icon');
+  function sync() { icon.textContent = document.documentElement.classList.contains('light') ? '☀️' : '🌙'; }
+  sync();
+  btn.addEventListener('click', function () {
+    var isLight = document.documentElement.classList.toggle('light');
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    sync();
+  });
+})();
+
+// ---- tab switching ----
+document.querySelectorAll('.tab').forEach(function (tab) {
+  tab.addEventListener('click', function () {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.target).classList.add('active');
+  });
+});
+
+// ---- quick skill tags ----
+document.querySelectorAll('.quick').forEach(function (q) {
+  q.addEventListener('click', function () {
+    const input = document.getElementById('skills');
+    const parts = input.value.split(',').map(s => s.trim()).filter(Boolean);
+    if (!parts.map(p => p.toLowerCase()).includes(q.dataset.skill)) {
+      parts.push(q.dataset.skill);
+      input.value = parts.join(', ');
+    }
+    q.classList.add('picked');
+  });
+});
+
+// ---- filename + loading state ----
+var resumeInput = document.getElementById('resume');
+if (resumeInput) {
+  resumeInput.addEventListener('change', function () {
+    const name = this.files.length ? this.files[0].name : 'Click to upload your resume (PDF)';
+    document.getElementById('dz-text').textContent = name;
+    if (this.files.length) document.getElementById('dropzone').classList.add('filled');
+  });
+}
+document.getElementById('job-form').addEventListener('submit', function () {
+  document.getElementById('submit-btn').classList.add('loading');
+});
+
+// ---- reveal live options when live mode is on ----
+(function () {
+  var live = document.getElementById('live');
+  var opts = document.getElementById('live-options');
+  if (!live || !opts) return;
+  function sync() { opts.classList.toggle('collapsed', !live.checked); }
+  live.addEventListener('change', sync);
+  sync();
+})();
+
+// ---- remember last chosen city ----
+(function () {
+  var where = document.getElementById('where');
+  if (!where) return;
+  var KEY = 'lastCity';
+  // restore only when the page didn't already specify a city (e.g. share link)
+  if (where.value === '') {
+    var saved = localStorage.getItem(KEY);
+    if (saved !== null && Array.prototype.some.call(where.options, function (o) { return o.value === saved; })) {
+      where.value = saved;
+    }
+  }
+  where.addEventListener('change', function () { localStorage.setItem(KEY, where.value); });
+})();
+
+// ---- copy detected skills ----
+var copyBtn = document.getElementById('copy-skills');
+if (copyBtn) {
+  copyBtn.addEventListener('click', function () {
+    var text = copyBtn.dataset.skills || '';
+    copyText(text).then(function () {
+      copyBtn.textContent = '✅ Copied!';
+      copyBtn.classList.add('done');
+      setTimeout(function () { copyBtn.textContent = '📋 Copy'; copyBtn.classList.remove('done'); }, 1600);
+    }).catch(function () {
+      window.prompt('Copy your skills:', text);
+    });
+  });
+}
+
+// ---- sort + filter + show-more ----
+(function () {
+  var list = document.getElementById('results-list');
+  if (!list) return;
+  var countEl = document.getElementById('result-count');
+  var noVisible = document.getElementById('no-visible');
+  var showMore = document.getElementById('show-more');
+  var PAGE = 5;
+  var FILTER_KEY = 'lastFilter';
+  var filter = 'all';
+  var savedFilter = localStorage.getItem(FILTER_KEY);
+  if (savedFilter && document.querySelector('.fpill[data-filter="' + savedFilter + '"]')) {
+    filter = savedFilter;
+  }
+  var sort = 'desc';
+  var limit = PAGE;
+
+  // don't strand the user: if the remembered filter matches nothing in this
+  // result set, fall back to "All"
+  function countPass(f) {
+    return Array.prototype.filter.call(list.querySelectorAll('.card'), function (c) {
+      return f === 'all' || c.dataset[f] === '1';
+    }).length;
+  }
+  if (filter !== 'all' && countPass(filter) === 0) {
+    filter = 'all';
+  }
+
+  // reflect the restored filter on the pills
+  document.querySelectorAll('.fpill').forEach(function (p) {
+    var on = p.dataset.filter === filter;
+    p.classList.toggle('active', on);
+    p.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+
+  function apply() {
+    var cards = Array.prototype.slice.call(list.querySelectorAll('.card'));
+    // sort
+    cards.sort(function (a, b) {
+      if (sort === 'sal-desc' || sort === 'sal-asc') {
+        var sa = parseFloat(a.dataset.salary) || 0, sb = parseFloat(b.dataset.salary) || 0;
+        // jobs without a salary always sink to the bottom
+        if (sa === 0 && sb !== 0) return 1;
+        if (sb === 0 && sa !== 0) return -1;
+        return sort === 'sal-asc' ? sa - sb : sb - sa;
+      }
+      var da = parseFloat(a.dataset.score), db = parseFloat(b.dataset.score);
+      return sort === 'asc' ? da - db : db - da;
+    });
+    cards.forEach(function (c) { list.appendChild(c); });
+    // filter + paginate
+    var passed = 0, shown = 0;
+    cards.forEach(function (c) {
+      // filter value maps directly to a data-* attribute (india / remote)
+      var pass = filter === 'all' || c.dataset[filter] === '1';
+      if (pass) {
+        passed++;
+        if (shown < limit) { c.style.display = 'flex'; shown++; }
+        else c.style.display = 'none';
+      } else {
+        c.style.display = 'none';
+      }
+    });
+    countEl.textContent = passed + (passed === 1 ? ' match' : ' matches');
+    noVisible.classList.toggle('hidden', passed !== 0);
+    showMore.classList.toggle('hidden', shown >= passed);
+  }
+
+  document.querySelectorAll('.fpill').forEach(function (p) {
+    p.addEventListener('click', function () {
+      document.querySelectorAll('.fpill').forEach(function (x) {
+        x.classList.remove('active');
+        x.setAttribute('aria-pressed', 'false');
+      });
+      p.classList.add('active');
+      p.setAttribute('aria-pressed', 'true');
+      filter = p.dataset.filter;
+      localStorage.setItem(FILTER_KEY, filter);
+      limit = PAGE;
+      apply();
+    });
+  });
+  document.getElementById('sort-select').addEventListener('change', function () {
+    sort = this.value;
+    limit = PAGE;
+    apply();
+  });
+  showMore.addEventListener('click', function () {
+    limit += PAGE;
+    apply();
+  });
+
+  apply();
+})();
+
+// ---- share results link ----
+var shareBtn = document.getElementById('share-btn');
+if (shareBtn) {
+  shareBtn.addEventListener('click', function () {
+    var skills = (shareBtn.dataset.skills || '').trim();
+    var url = location.origin + location.pathname + '?skills=' + encodeURIComponent(skills);
+    if (shareBtn.dataset.live === '1') {
+      url += '&live=1';
+      if (shareBtn.dataset.where) url += '&where=' + encodeURIComponent(shareBtn.dataset.where);
+    }
+    copyText(url).then(function () {
+      shareBtn.textContent = '✅ Link copied!';
+      shareBtn.classList.add('done');
+      setTimeout(function () { shareBtn.textContent = '🔗 Share'; shareBtn.classList.remove('done'); }, 1800);
+    }).catch(function () {
+      window.prompt('Copy this shareable link:', url);
+    });
+  });
+}
+
+// ---- recent searches (localStorage) ----
+(function () {
+  var KEY = 'recentSearches';
+  var box = document.getElementById('recent-box');
+  var chips = document.getElementById('recent-chips');
+  if (!box) return;
+
+  function get() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
+  function set(a) { localStorage.setItem(KEY, JSON.stringify(a.slice(0, 6))); }
+
+  // record the current query (server-rendered) if there was one
+  var q = (document.body.dataset.query || '').trim();
+  if (q) {
+    var list = get().filter(function (x) { return x.toLowerCase() !== q.toLowerCase(); });
+    list.unshift(q);
+    set(list);
+  }
+
+  function render() {
+    var list = get();
+    chips.innerHTML = '';
+    if (!list.length) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    list.forEach(function (s) {
+      var a = document.createElement('a');
+      a.className = 'recent-chip';
+      a.href = '?skills=' + encodeURIComponent(s);
+      a.textContent = s;
+      chips.appendChild(a);
+    });
+  }
+  render();
+
+  document.getElementById('recent-clear').addEventListener('click', function () {
+    localStorage.removeItem(KEY);
+    render();
+  });
+})();
+</script>
 
 </body>
 </html>
