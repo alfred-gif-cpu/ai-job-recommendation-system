@@ -73,7 +73,7 @@ def parse_job_link(link):
 # ===============================
 # MAIN FUNCTION (USED BY FLASK)
 # ===============================
-def recommend_jobs(user_skills, top_n=12):
+def recommend_jobs(user_skills, top_n=24):
     user_skills = str(user_skills).lower().strip()
     user_set = {s.strip() for s in user_skills.split(",") if s.strip()}
 

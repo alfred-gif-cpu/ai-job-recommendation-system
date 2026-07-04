@@ -70,7 +70,7 @@ def _format_salary(job):
     return text + "/yr"
 
 
-def fetch_live_jobs(user_skills, where="", limit=12):
+def fetch_live_jobs(user_skills, where="", limit=24):
     """Return (results, error). ``error`` is "" on success. India only."""
     app_id = os.getenv("ADZUNA_APP_ID")
     app_key = os.getenv("ADZUNA_APP_KEY")
