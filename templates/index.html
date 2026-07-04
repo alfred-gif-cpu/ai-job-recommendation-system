@@ -151,69 +151,12 @@ data-where="{{ where }}">🔗 Share</button>
 </label>
 </div>
 
-<div id="results-list">
-{% for job in results %}
-<div class="card" data-score="{{ job.score }}" data-india="{{ 1 if job.india_job else 0 }}" data-remote="{{ 1 if job.remote else 0 }}" data-hassalary="{{ 1 if job.salary else 0 }}" data-salary="{{ job.salary_value | default(0) }}">
-
-<div class="card-main">
-<div class="card-head">
-<h3 class="job-title">{{ job.title }}</h3>
-{% if job.company %}<p class="company">🏢 {{ job.company }}{% if job.location %} · 📍 {{ job.location }}{% endif %}</p>{% endif %}
-{% if job.salary %}<p class="salary">💰 {{ job.salary }}</p>{% endif %}
-<div class="tags">
-{% if job.india_job %}
-<span class="pill india">🇮🇳 India Preferred</span>
-{% else %}
-<span class="pill global">🌍 Global</span>
-{% endif %}
-{% if job.remote %}<span class="pill remote">🏠 Remote</span>{% endif %}
-</div>
-</div>
-
-<p class="summary">{{ job.summary }}…</p>
-
-{% if job.required_count %}
-<div class="skill-meter" title="{{ job.matched_count }} of {{ job.required_count }} required skills matched">
-<div class="meter-track"><div class="meter-fill" style="width: {{ (job.matched_count / job.required_count * 100) | round | int }}%"></div></div>
-<span class="meter-label">{{ job.matched_count }}/{{ job.required_count }} skills</span>
-</div>
-{% endif %}
-
-<div class="skill-section">
-<p class="label">Required</p>
-<div class="chip-row">
-{% for s in job.skills.split(',') %}{% if s.strip() %}<span class="mini-chip have">{{ s.strip() }}</span>{% endif %}{% endfor %}
-</div>
-</div>
-
-{% if job.missing_skills %}
-<div class="skill-section">
-<p class="label">Skills to Learn</p>
-<div class="chip-row">
-{% for s in job.missing_skills.split(',') %}{% if s.strip() %}<span class="mini-chip miss">{{ s.strip() }}</span>{% endif %}{% endfor %}
-</div>
-</div>
-{% endif %}
-
-{% if job.link %}
-<a class="apply-btn" href="{{ job.link }}" target="_blank" rel="noopener noreferrer">Apply / View Job →</a>
-{% endif %}
-</div>
-
-<div class="ring" style="--val: {{ [job.score, 100] | min }}" tabindex="0">
-<div class="ring-inner">
-<span class="ring-val">{{ job.score | round | int }}<small>%</small></span>
-<span class="ring-label">match</span>
-</div>
-<div class="ring-tip">
-<span class="tip-row"><b>Skill match</b><span>{{ job.base_score | round | int }}%</span></span>
-{% if job.india_bonus %}<span class="tip-row"><b>🇮🇳 India bonus</b><span>+{{ job.india_bonus }}%</span></span>{% endif %}
-<span class="tip-row"><b>Skills matched</b><span>{{ job.matched_count }} / {{ job.required_count }}</span></span>
-</div>
-</div>
-
-</div>
-{% endfor %}
+<div id="results-list"
+data-skills="{{ skills_input if skills_input else (detected_skills | join(', ')) }}"
+data-where="{{ where }}"
+data-live="{{ '1' if live_on else '' }}"
+data-loaded="{{ results | length }}">
+{% include "_cards.html" %}
 </div>
 
 <div class="no-visible hidden" id="no-visible">No jobs match this filter.</div>
@@ -351,6 +294,12 @@ if (copyBtn) {
   var sort = 'desc';
   var limit = PAGE;
 
+  // on-demand live pagination state
+  var livePage = 1;
+  var loadingMore = false;
+  var liveHasMore = list.dataset.live === '1' && parseInt(list.dataset.loaded || '0', 10) >= 50;
+  var lastShown = 0, lastPassed = 0;
+
   // don't strand the user: if the remembered filter matches nothing in this
   // result set, fall back to "All"
   function countPass(f) {
@@ -399,7 +348,48 @@ if (copyBtn) {
     });
     countEl.textContent = passed + (passed === 1 ? ' match' : ' matches');
     noVisible.classList.toggle('hidden', passed !== 0);
-    showMore.classList.toggle('hidden', shown >= passed);
+
+    lastShown = shown;
+    lastPassed = passed;
+    if (loadingMore) return;  // keep the "Loading…" label until the fetch resolves
+    var canReveal = shown < passed;
+    var canLoad = !canReveal && liveHasMore;
+    if (canReveal) {
+      showMore.textContent = 'Show more ↓';
+      showMore.classList.remove('hidden');
+    } else if (canLoad) {
+      showMore.textContent = '🔴 Load more live jobs';
+      showMore.classList.remove('hidden');
+    } else {
+      showMore.classList.add('hidden');
+    }
+  }
+
+  function loadNextLivePage() {
+    loadingMore = true;
+    showMore.textContent = 'Loading…';
+    var skills = list.dataset.skills || '';
+    var where = list.dataset.where || '';
+    fetch('/live-more?skills=' + encodeURIComponent(skills) +
+          '&where=' + encodeURIComponent(where) + '&page=' + (livePage + 1))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        loadingMore = false;
+        if (data.count > 0 && data.html) {
+          livePage += 1;
+          var tmp = document.createElement('div');
+          tmp.innerHTML = data.html;
+          Array.prototype.forEach.call(tmp.querySelectorAll('.card'), function (c) {
+            list.appendChild(c);
+          });
+          liveHasMore = !!data.hasMore;
+          limit += PAGE;
+        } else {
+          liveHasMore = false;
+        }
+        apply();
+      })
+      .catch(function () { loadingMore = false; liveHasMore = false; apply(); });
   }
 
   document.querySelectorAll('.fpill').forEach(function (p) {
@@ -422,8 +412,15 @@ if (copyBtn) {
     apply();
   });
   showMore.addEventListener('click', function () {
-    limit += PAGE;
-    apply();
+    if (loadingMore) return;
+    if (lastShown < lastPassed) {
+      // reveal more already-loaded cards (no API call)
+      limit += PAGE;
+      apply();
+    } else if (liveHasMore) {
+      // fetch the next Adzuna page on demand (one API call)
+      loadNextLivePage();
+    }
   });
 
   apply();

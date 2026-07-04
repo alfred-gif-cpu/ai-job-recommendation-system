@@ -22,7 +22,7 @@ SEMANTIC = semantic.available()
 
 COUNTRY = "in"  # this app searches Indian jobs only
 CURRENCY = "₹"
-ADZUNA_URL = "https://api.adzuna.com/v1/api/jobs/in/search/1?{params}"
+ADZUNA_URL = "https://api.adzuna.com/v1/api/jobs/in/search/{page}?{params}"
 _TAG_RE = re.compile(r"<[^>]+>")
 
 # Cities offered in the location dropdown. The value is the ``where`` string
@@ -82,8 +82,12 @@ def _format_salary(job):
     return text + "/yr"
 
 
-def fetch_live_jobs(user_skills, where="", limit=50):
-    """Return (results, error). ``error`` is "" on success. India only."""
+def fetch_live_jobs(user_skills, where="", limit=50, page=1):
+    """Return (results, error). ``error`` is "" on success. India only.
+
+    ``page`` fetches a later page of Adzuna results (each page = one API call);
+    used by the on-demand "Show more" pagination.
+    """
     app_id = os.getenv("ADZUNA_APP_ID")
     app_key = os.getenv("ADZUNA_APP_KEY")
     if not app_id or not app_key:
@@ -93,13 +97,14 @@ def fetch_live_jobs(user_skills, where="", limit=50):
     where = (where or "").strip()
     if where not in _VALID_CITIES:
         where = ""
+    page = max(1, int(page))
 
     user_set = {s.strip().lower() for s in user_skills.split(",") if s.strip()}
     if not user_set:
         return [], ""
 
     # cache lookup
-    cache_key = (where.lower(), tuple(sorted(user_set)))
+    cache_key = (where.lower(), tuple(sorted(user_set)), page)
     cached = _CACHE.get(cache_key)
     if cached and time.time() - cached[0] < _CACHE_TTL:
         return cached[1], ""
@@ -113,7 +118,7 @@ def fetch_live_jobs(user_skills, where="", limit=50):
     }
     if where:
         query["where"] = where
-    url = ADZUNA_URL.format(params=urllib.parse.urlencode(query))
+    url = ADZUNA_URL.format(page=page, params=urllib.parse.urlencode(query))
 
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "job-recommender"})

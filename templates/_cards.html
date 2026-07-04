@@ -1,0 +1,62 @@
+{% for job in results %}
+<div class="card" data-score="{{ job.score }}" data-india="{{ 1 if job.india_job else 0 }}" data-remote="{{ 1 if job.remote else 0 }}" data-hassalary="{{ 1 if job.salary else 0 }}" data-salary="{{ job.salary_value | default(0) }}">
+
+<div class="card-main">
+<div class="card-head">
+<h3 class="job-title">{{ job.title }}</h3>
+{% if job.company %}<p class="company">🏢 {{ job.company }}{% if job.location %} · 📍 {{ job.location }}{% endif %}</p>{% endif %}
+{% if job.salary %}<p class="salary">💰 {{ job.salary }}</p>{% endif %}
+<div class="tags">
+{% if job.india_job %}
+<span class="pill india">🇮🇳 India Preferred</span>
+{% else %}
+<span class="pill global">🌍 Global</span>
+{% endif %}
+{% if job.remote %}<span class="pill remote">🏠 Remote</span>{% endif %}
+</div>
+</div>
+
+<p class="summary">{{ job.summary }}…</p>
+
+{% if job.required_count %}
+<div class="skill-meter" title="{{ job.matched_count }} of {{ job.required_count }} required skills matched">
+<div class="meter-track"><div class="meter-fill" style="width: {{ (job.matched_count / job.required_count * 100) | round | int }}%"></div></div>
+<span class="meter-label">{{ job.matched_count }}/{{ job.required_count }} skills</span>
+</div>
+{% endif %}
+
+<div class="skill-section">
+<p class="label">Required</p>
+<div class="chip-row">
+{% for s in job.skills.split(',') %}{% if s.strip() %}<span class="mini-chip have">{{ s.strip() }}</span>{% endif %}{% endfor %}
+</div>
+</div>
+
+{% if job.missing_skills %}
+<div class="skill-section">
+<p class="label">Skills to Learn</p>
+<div class="chip-row">
+{% for s in job.missing_skills.split(',') %}{% if s.strip() %}<span class="mini-chip miss">{{ s.strip() }}</span>{% endif %}{% endfor %}
+</div>
+</div>
+{% endif %}
+
+{% if job.link %}
+<a class="apply-btn" href="{{ job.link }}" target="_blank" rel="noopener noreferrer">Apply / View Job →</a>
+{% endif %}
+</div>
+
+<div class="ring" style="--val: {{ [job.score, 100] | min }}" tabindex="0">
+<div class="ring-inner">
+<span class="ring-val">{{ job.score | round | int }}<small>%</small></span>
+<span class="ring-label">match</span>
+</div>
+<div class="ring-tip">
+<span class="tip-row"><b>Skill match</b><span>{{ job.base_score | round | int }}%</span></span>
+{% if job.india_bonus %}<span class="tip-row"><b>🇮🇳 India bonus</b><span>+{{ job.india_bonus }}%</span></span>{% endif %}
+<span class="tip-row"><b>Skills matched</b><span>{{ job.matched_count }} / {{ job.required_count }}</span></span>
+</div>
+</div>
+
+</div>
+{% endfor %}

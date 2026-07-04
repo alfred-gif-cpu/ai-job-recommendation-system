@@ -20,7 +20,7 @@ def _load_env_file(path=".env"):
 
 _load_env_file()
 
-from flask import Flask, render_template, request
+from flask import Flask, jsonify, render_template, request
 from smart_india_recommender import recommend_jobs
 from job_api import fetch_live_jobs, INDIA_CITIES
 from skills_config import extract_skills
@@ -141,6 +141,31 @@ def home():
         where=where,
         cities=INDIA_CITIES,
     )
+
+
+@app.route("/live-more")
+def live_more():
+    """Fetch one more page of live Adzuna jobs (on-demand pagination).
+
+    Returns JSON with rendered card HTML and whether more pages likely exist.
+    """
+    skills = (request.args.get("skills") or "").strip()
+    where = (request.args.get("where") or "").strip()
+    try:
+        page = int(request.args.get("page", 2))
+    except ValueError:
+        page = 2
+
+    if not skills or page < 2:
+        return jsonify(html="", count=0, hasMore=False)
+
+    jobs, err = fetch_live_jobs(skills, where=where, page=page)
+    if err:
+        return jsonify(html="", count=0, hasMore=False, error=err)
+
+    html = render_template("_cards.html", results=jobs)
+    # A full page suggests there may be another; a short page means we're done.
+    return jsonify(html=html, count=len(jobs), hasMore=len(jobs) >= 50)
 
 
 if __name__ == "__main__":
