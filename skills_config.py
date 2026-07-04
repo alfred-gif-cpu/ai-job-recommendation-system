@@ -18,16 +18,49 @@ SKILL_LIST = [
 ]
 
 
-# Precompile a matcher per skill. We bound each skill with alphanumeric
-# look-arounds instead of \b so skills ending/starting in punctuation (e.g.
+# Common aliases / spellings mapped to their canonical skill. Kept conservative
+# to avoid false positives (e.g. no bare "go" or "r").
+SKILL_ALIASES = {
+    "ml": "machine learning",
+    "machine-learning": "machine learning",
+    "dl": "deep learning",
+    "deep-learning": "deep learning",
+    "js": "javascript",
+    "ts": "typescript",
+    "reactjs": "react",
+    "react.js": "react",
+    "nodejs": "node.js",
+    "node js": "node.js",
+    "k8s": "kubernetes",
+    "postgres": "postgresql",
+    "mongo": "mongodb",
+    "sklearn": "scikit-learn",
+    "scikit learn": "scikit-learn",
+    "cpp": "c++",
+    "power bi": "powerbi",
+    "power-bi": "powerbi",
+    "tensor flow": "tensorflow",
+    "problem-solving": "problem solving",
+}
+
+# Precompile a matcher per skill/alias. We bound each term with alphanumeric
+# look-arounds instead of \b so terms ending/starting in punctuation (e.g.
 # "c++") still match — \b never matches after a "+".
-_SKILL_PATTERNS = [
-    (skill, re.compile(r"(?<![a-z0-9])" + re.escape(skill) + r"(?![a-z0-9])"))
-    for skill in SKILL_LIST
-]
+def _bounded(term):
+    return re.compile(r"(?<![a-z0-9])" + re.escape(term) + r"(?![a-z0-9])")
+
+
+_PATTERNS = [(skill, _bounded(skill)) for skill in SKILL_LIST]
+_PATTERNS += [(canonical, _bounded(alias)) for alias, canonical in SKILL_ALIASES.items()]
 
 
 def extract_skills(text):
-    """Return the master-list skills found as whole tokens in ``text``."""
+    """Return the canonical master-list skills found in ``text``.
+
+    Matches whole tokens (so "react" != "reaction") and resolves common
+    aliases ("ml" -> machine learning, "k8s" -> kubernetes, ...). Results are
+    de-duplicated and returned in master-list order.
+    """
     text = str(text).lower()
-    return [skill for skill, pat in _SKILL_PATTERNS if pat.search(text)]
+    found = {skill for skill, pat in _PATTERNS if pat.search(text)}
+    return [skill for skill in SKILL_LIST if skill in found]
