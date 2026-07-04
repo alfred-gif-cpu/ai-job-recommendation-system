@@ -8,14 +8,17 @@ local CSV recommender.
 
 import html
 import json
-import math
 import os
 import re
 import time
 import urllib.parse
 import urllib.request
 
+import semantic
+from semantic import embed, scale_similarity
 from skills_config import extract_skills
+
+SEMANTIC = semantic.available()
 
 COUNTRY = "in"  # this app searches Indian jobs only
 CURRENCY = "₹"
@@ -51,6 +54,15 @@ _CACHE_TTL = 600  # seconds (10 minutes)
 def _clean(text):
     """Strip HTML tags / entities Adzuna sometimes returns in descriptions."""
     return html.unescape(_TAG_RE.sub("", str(text or ""))).strip()
+
+
+def _semantic_scores(user_skills, job_texts):
+    """Cosine similarity of the query against each job text (batched)."""
+    if not job_texts:
+        return []
+    query_vec = embed([f"Skills: {user_skills}"])[0]
+    job_vecs = embed(job_texts)  # L2-normalized -> dot == cosine
+    return (job_vecs @ query_vec).tolist()
 
 
 def _format_salary(job):
@@ -110,31 +122,43 @@ def fetch_live_jobs(user_skills, where="", limit=50):
     except Exception as exc:  # network / HTTP / JSON errors
         return [], f"Live search is unavailable right now ({type(exc).__name__})."
 
-    india_bonus = 0.15
-    results = []
+    jobs = data.get("results", [])
 
-    for job in data.get("results", []):
+    # Parse each job and build a skill-focused text (used for semantic scoring).
+    parsed = []
+    job_texts = []
+    for job in jobs:
         title = _clean(job.get("title")) or "Job Opening"
         desc = _clean(job.get("description"))
+        job_skills = {s.lower() for s in extract_skills(title + " " + desc)}
+        parsed.append((job, title, desc, job_skills))
+        job_texts.append(f"Skills: {', '.join(sorted(job_skills))}. {title}. {desc[:300]}")
+
+    # Semantic scoring when available; otherwise classic skill-overlap cosine.
+    sims = _semantic_scores(user_skills, job_texts) if SEMANTIC else [0.0] * len(parsed)
+
+    results = []
+    for (job, title, desc, job_skills), sim in zip(parsed, sims):
         location = _clean((job.get("location") or {}).get("display_name"))
         remote = "remote" in (title + " " + desc + " " + location).lower() \
             or "work from home" in (desc + " " + location).lower()
 
-        job_skills = {s.lower() for s in extract_skills(title + " " + desc)}
         matched = job_skills & user_set
         missing = job_skills - user_set
         salary_value = int(job.get("salary_max") or job.get("salary_min") or 0)
 
-        # cosine similarity on binary skill-presence vectors
-        if user_set and job_skills:
-            sim = len(matched) / math.sqrt(len(user_set) * len(job_skills))
+        if SEMANTIC:
+            # every result is already an India job, so no flat India bonus
+            base, india_bonus = scale_similarity(sim), 0.0
         else:
-            sim = 0.0
-        final_score = min(sim + india_bonus, 1.0)
+            overlap = (len(user_set) * len(job_skills)) ** 0.5
+            base = len(matched) / overlap if overlap else 0.0
+            india_bonus = 0.15
+        final_score = min(base + india_bonus, 1.0)
 
         results.append({
             "score": round(final_score * 100, 2),
-            "base_score": round(sim * 100, 2),
+            "base_score": round(base * 100, 2),
             "india_bonus": round(india_bonus * 100),
             "matched_count": len(matched),
             "required_count": len(job_skills),

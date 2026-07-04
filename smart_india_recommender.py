@@ -1,64 +1,55 @@
+import os
 import re
 from urllib.parse import unquote, urlparse
 
 import numpy as np
 import pandas as pd
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+
+import semantic
 
 # ===============================
-# LOAD DATASET
+# LOAD DATASET (must match build_embeddings.py ordering)
 # ===============================
-df = pd.read_csv("jobs_with_skills.csv")
-
-# remove empty skills and reset index so positional lookups stay aligned
-df = df.dropna(subset=["skills"]).reset_index(drop=True)
+df = pd.read_csv("jobs_with_skills.csv").dropna(subset=["skills"]).reset_index(drop=True)
 
 # ===============================
-# INDIA KEYWORDS
+# INDIA / REMOTE FLAGS
 # ===============================
 india_keywords = [
-    "india",
-    "bangalore",
-    "bengaluru",
-    "hyderabad",
-    "chennai",
-    "mumbai",
-    "pune",
-    "delhi",
-    "gurgaon",
-    "noida",
-    "remote india",
+    "india", "bangalore", "bengaluru", "hyderabad", "chennai", "mumbai",
+    "pune", "delhi", "gurgaon", "noida", "remote india",
 ]
-
-# Precompute the India flag once per job instead of scanning the summary
-# text on every single request.
 _summary_lower = df["job_summary"].astype(str).str.lower()
 _india_pattern = "|".join(re.escape(k) for k in india_keywords)
 df["is_india"] = _summary_lower.str.contains(_india_pattern, na=False)
+df["is_remote"] = _summary_lower.str.contains("remote|work from home", na=False)
 
 # ===============================
-# VECTORIZE SKILLS
+# MATCHING BACKEND
+# Semantic (embeddings) when enabled + available, else classic bag-of-words.
 # ===============================
-vectorizer = CountVectorizer()
-job_vectors = vectorizer.fit_transform(df["skills"])
+SEMANTIC = semantic.available() and os.path.exists("job_embeddings.npy")
+
+if SEMANTIC:
+    job_embeddings = np.load("job_embeddings.npy")
+else:
+    from sklearn.feature_extraction.text import CountVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    _vectorizer = CountVectorizer()
+    _job_vectors = _vectorizer.fit_transform(df["skills"])
 
 
 # ===============================
 # JOB TITLE / COMPANY FROM LINK
 # ===============================
 def parse_job_link(link):
-    """Extract a readable title + company from a LinkedIn-style job URL.
-
-    Links look like:
-    https://.../jobs/view/store-manager-at-goodwill-industries-3766724818
-    -> title="Store Manager", company="Goodwill Industries"
-    """
+    """Extract a readable title + company from a LinkedIn-style job URL."""
     title, company = "Job Opening", ""
     try:
         path = unquote(urlparse(str(link)).path).rstrip("/")
         slug = path.split("/view/")[-1] if "/view/" in path else path.split("/")[-1]
-        slug = re.sub(r"-\d+$", "", slug)  # drop the trailing numeric job id
+        slug = re.sub(r"-\d+$", "", slug)
         if "-at-" in slug:
             title_part, company_part = slug.split("-at-", 1)
         else:
@@ -70,64 +61,59 @@ def parse_job_link(link):
     return title, company
 
 
+def _build_result(row, base, india_bonus, user_set):
+    final_score = min(base + india_bonus, 1.0)
+    job_skills = {s.strip() for s in str(row["skills"]).split(",") if s.strip()}
+    matched = job_skills & user_set
+    missing = job_skills - user_set
+    title, company = parse_job_link(row["job_link"])
+    return {
+        "score": round(final_score * 100, 2),
+        "base_score": round(base * 100, 2),
+        "india_bonus": round(india_bonus * 100),
+        "matched_count": len(matched),
+        "required_count": len(job_skills),
+        "india_job": bool(row["is_india"]),
+        "remote": bool(row["is_remote"]),
+        "title": title,
+        "company": company,
+        "link": row["job_link"],
+        "skills": row["skills"],
+        "missing_skills": ", ".join(sorted(missing)),
+        "summary": str(row["job_summary"])[:150],
+    }
+
+
 # ===============================
 # MAIN FUNCTION (USED BY FLASK)
 # ===============================
 def recommend_jobs(user_skills, top_n=50):
     user_skills = str(user_skills).lower().strip()
     user_set = {s.strip() for s in user_skills.split(",") if s.strip()}
-
     if not user_set:
         return []
 
-    user_vector = vectorizer.transform([user_skills])
-    scores = cosine_similarity(user_vector, job_vectors)[0]
+    if SEMANTIC:
+        # embed query in the same "Skills: ..." framing as the docs
+        query_vec = semantic.embed([f"Skills: {user_skills}"])[0]
+        scores = job_embeddings @ query_vec  # L2-normalized -> cosine
+        base_of = lambda i: semantic.scale_similarity(scores[i])
+    else:
+        user_vector = _vectorizer.transform([user_skills])
+        scores = cosine_similarity(user_vector, _job_vectors)[0]
+        base_of = lambda i: float(scores[i])
 
-    if not scores.any():
-        return []
-
-    # Only re-rank a bounded pool of the strongest cosine matches instead of
-    # looping over every row (~53k). The India bonus can only reshuffle within
-    # this pool, which keeps requests fast without changing the top results.
-    pool_size = min(len(scores), max(top_n * 20, 100))
-    candidate_idx = np.argpartition(scores, -pool_size)[-pool_size:]
+    pool = min(len(scores), max(top_n * 4, 200))
+    candidate_idx = np.argpartition(scores, -pool)[-pool:]
 
     results = []
     for i in candidate_idx:
-        score = float(scores[i])
-        if score <= 0:
+        base = base_of(i)
+        if base <= 0:
             continue
-
         row = df.iloc[i]
-        summary_text = str(row["job_summary"]).lower()
         india_bonus = 0.15 if row["is_india"] else 0.0
-        remote = "remote" in summary_text or "work from home" in summary_text
-
-        # Cap at 1.0 so the score / progress bar never exceeds 100%.
-        final_score = min(score + india_bonus, 1.0)
-
-        job_skills = {s.strip() for s in str(row["skills"]).split(",") if s.strip()}
-        matched = job_skills & user_set
-        missing = job_skills - user_set
-
-        title, company = parse_job_link(row["job_link"])
-
-        results.append({
-            "score": round(final_score * 100, 2),
-            # breakdown used by the ring tooltip
-            "base_score": round(score * 100, 2),
-            "india_bonus": round(india_bonus * 100),
-            "matched_count": len(matched),
-            "required_count": len(job_skills),
-            "india_job": india_bonus > 0,
-            "remote": remote,
-            "title": title,
-            "company": company,
-            "link": row["job_link"],
-            "skills": row["skills"],
-            "missing_skills": ", ".join(sorted(missing)),
-            "summary": str(row["job_summary"])[:150],
-        })
+        results.append(_build_result(row, base, india_bonus, user_set))
 
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:top_n]

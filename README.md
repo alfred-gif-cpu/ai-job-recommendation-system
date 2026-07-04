@@ -82,6 +82,23 @@ Without keys, live search safely falls back to the bundled sample dataset and
 tells you why. No extra dependencies are needed — the client uses the standard
 library.
 
+## 🧠 Semantic matching (optional, local)
+
+By default the app matches skills with a fast classic bag-of-words model
+(scikit-learn) — lightweight and safe for any host. For **semantic matching**
+(ranking by *meaning*, so "ML" ≈ "machine learning", "reactjs" ≈ "react") it can
+use on-device sentence-transformer embeddings — **no external API calls**:
+
+```bash
+pip install -r requirements-semantic.txt   # pulls in PyTorch (needs ~1-2 GB RAM)
+python build_embeddings.py                  # precompute job embeddings (once)
+# set USE_SEMANTIC=1 in your .env, then run the app
+```
+
+This is **off by default** and gated by the `USE_SEMANTIC` flag, so low-memory
+hosts (like Render's free tier) automatically fall back to the classic matcher
+and never load PyTorch.
+
 ## ☁️ Deploy to Render
 
 This repo includes a `render.yaml` blueprint, so deployment is one click:
