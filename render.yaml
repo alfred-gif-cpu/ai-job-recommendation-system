@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ai-job-recommender
+    name: job-recommendation-system
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
