@@ -128,7 +128,19 @@ placeholder="e.g. python, sql, machine learning">
 data-skills="{{ skills_input if skills_input else (detected_skills | join(', ')) }}"
 data-live="{{ '1' if live_on else '' }}"
 data-where="{{ where }}">🔗 Share</button>
+<div class="export-wrap">
+<button type="button" class="share-btn" id="export-btn">⬇ Export</button>
+<div class="export-menu hidden" id="export-menu">
+<button type="button" data-format="csv">📄 CSV</button>
+<button type="button" data-format="pdf">📕 PDF</button>
 </div>
+</div>
+</div>
+</div>
+
+<div class="insights hidden" id="insights">
+<p class="insights-title">📈 Top skills in these results</p>
+<div class="insights-chips" id="insights-chips"></div>
 </div>
 
 <div class="toolbar">
@@ -363,6 +375,7 @@ if (copyBtn) {
     } else {
       showMore.classList.add('hidden');
     }
+    updateInsights();
   }
 
   function loadNextLivePage() {
@@ -424,6 +437,95 @@ if (copyBtn) {
   });
 
   apply();
+})();
+
+// ---- top-skills insights (computed client-side from loaded cards) ----
+function updateInsights() {
+  var panel = document.getElementById('insights');
+  var chipsEl = document.getElementById('insights-chips');
+  if (!panel || !chipsEl) return;
+  var counts = {};
+  document.querySelectorAll('#results-list .card .mini-chip.have').forEach(function (chip) {
+    var skill = chip.textContent.trim().toLowerCase();
+    if (!skill) return;
+    counts[skill] = (counts[skill] || 0) + 1;
+  });
+  var top = Object.keys(counts)
+    .map(function (s) { return { skill: s, count: counts[s] }; })
+    .sort(function (a, b) { return b.count - a.count; })
+    .slice(0, 8);
+  if (!top.length) { panel.classList.add('hidden'); return; }
+  chipsEl.innerHTML = '';
+  top.forEach(function (t) {
+    var span = document.createElement('span');
+    span.className = 'insight-chip';
+    span.innerHTML = t.skill + ' <b>' + t.count + '</b>';
+    chipsEl.appendChild(span);
+  });
+  panel.classList.remove('hidden');
+}
+
+// ---- export results (CSV / PDF) ----
+(function () {
+  var exportBtn = document.getElementById('export-btn');
+  var menu = document.getElementById('export-menu');
+  if (!exportBtn || !menu) return;
+
+  exportBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    menu.classList.toggle('hidden');
+  });
+  document.addEventListener('click', function () { menu.classList.add('hidden'); });
+
+  function collectVisibleJobs() {
+    var cards = Array.prototype.filter.call(
+      document.querySelectorAll('#results-list .card'),
+      function (c) { return c.style.display !== 'none'; }
+    );
+    return cards.map(function (c) {
+      var have = Array.prototype.map.call(c.querySelectorAll('.mini-chip.have'), function (s) { return s.textContent.trim(); });
+      var miss = Array.prototype.map.call(c.querySelectorAll('.mini-chip.miss'), function (s) {
+        return s.textContent.replace('▶', '').trim();
+      });
+      var applyEl = c.querySelector('.apply-btn');
+      var companyEl = c.querySelector('.company');
+      return {
+        title: c.querySelector('.job-title') ? c.querySelector('.job-title').textContent.trim() : '',
+        company: companyEl ? companyEl.textContent.replace('🏢', '').trim() : '',
+        location: '',
+        score: c.dataset.score || '',
+        salary: c.querySelector('.salary') ? c.querySelector('.salary').textContent.replace('💰', '').trim() : '',
+        skills: have.join(', '),
+        missing: miss.join(', '),
+        link: applyEl ? applyEl.href : ''
+      };
+    });
+  }
+
+  menu.querySelectorAll('button[data-format]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var jobs = collectVisibleJobs();
+      if (!jobs.length) { window.alert('No results to export yet.'); return; }
+      fetch('/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format: btn.dataset.format, jobs: jobs })
+      })
+        .then(function (r) { if (!r.ok) throw new Error('export failed'); return r.blob(); })
+        .then(function (blob) {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'job_matches.' + btn.dataset.format;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        })
+        .catch(function () { window.alert('Sorry, export failed. Please try again.'); });
+      menu.classList.add('hidden');
+    });
+  });
 })();
 
 // ---- share results link ----

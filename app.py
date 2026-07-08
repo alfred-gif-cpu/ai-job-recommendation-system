@@ -20,10 +20,12 @@ def _load_env_file(path=".env"):
 
 _load_env_file()
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 from smart_india_recommender import recommend_jobs
 from job_api import fetch_live_jobs, INDIA_CITIES
 from skills_config import extract_skills, learn_link
+from rate_limit import allow, client_ip
+from export_utils import jobs_to_csv, jobs_to_pdf
 import PyPDF2
 import docx
 
@@ -82,14 +84,19 @@ def dedupe_skills(raw):
     return out
 
 
-def find_jobs(skills, live, where=""):
+def find_jobs(skills, live, where="", ip="unknown"):
     """Return (results, message, live_ok). Uses Adzuna in live mode, else CSV.
 
-    Falls back to the local CSV recommender when live search is unavailable so
-    the app always returns something useful. ``live_ok`` is True only when the
+    Falls back to the local CSV recommender when live search is unavailable
+    (including when the caller has hit the live-search rate limit) so the app
+    always returns something useful. ``live_ok`` is True only when the
     results genuinely came from the live API.
     """
     if live:
+        if not allow(f"live:{ip}", limit=20, window=60):
+            return (recommend_jobs(skills),
+                    "Live search rate limit reached — showing sample matches. Try again in a minute.",
+                    False)
         results, err = fetch_live_jobs(skills, where=where)
         if err:
             return recommend_jobs(skills), err + " Showing sample matches instead.", False
@@ -106,6 +113,7 @@ def home():
     message = ""
     resume_handled = False
     live_ok = False
+    ip = client_ip(request)
 
     if request.method == "POST":
         skills_input = (request.form.get("skills") or "").strip()
@@ -136,7 +144,7 @@ def home():
                     # Carry the detected skills into the text box so the user can
                     # change the city / re-search without re-uploading the resume.
                     skills_input = ", ".join(detected_skills)
-                    results, message, live_ok = find_jobs(skills_input, live, where)
+                    results, message, live_ok = find_jobs(skills_input, live, where, ip)
     else:
         # GET: support shareable links like /?skills=python,sql&live=1&where=Pune
         skills_input = (request.args.get("skills") or "").strip()
@@ -146,7 +154,7 @@ def home():
     # Manual / shared-link skills flow
     if not resume_handled and skills_input:
         detected_skills = dedupe_skills(skills_input)
-        results, message, live_ok = find_jobs(skills_input, live, where)
+        results, message, live_ok = find_jobs(skills_input, live, where, ip)
     elif not resume_handled and request.method == "POST":
         message = "Please enter your skills or upload a resume."
 
@@ -183,6 +191,10 @@ def live_more():
     if not skills or page < 2:
         return jsonify(html="", count=0, hasMore=False)
 
+    if not allow(f"live:{client_ip(request)}", limit=20, window=60):
+        return jsonify(html="", count=0, hasMore=False,
+                        error="Rate limit reached — please wait a minute before loading more.")
+
     jobs, err = fetch_live_jobs(skills, where=where, page=page)
     if err:
         return jsonify(html="", count=0, hasMore=False, error=err)
@@ -190,6 +202,32 @@ def live_more():
     html = render_template("_cards.html", results=jobs)
     # A full page suggests there may be another; a short page means we're done.
     return jsonify(html=html, count=len(jobs), hasMore=len(jobs) >= 50)
+
+
+@app.route("/export", methods=["POST"])
+def export():
+    """Export the jobs currently shown on screen as a CSV or PDF download.
+
+    Takes the job list straight from the browser (no re-fetching), so this
+    never spends an extra Adzuna API call.
+    """
+    payload = request.get_json(silent=True) or {}
+    fmt = (payload.get("format") or "csv").lower()
+    jobs = payload.get("jobs") or []
+
+    if not isinstance(jobs, list) or not jobs:
+        return jsonify(error="No jobs to export."), 400
+
+    if fmt == "pdf":
+        data = jobs_to_pdf(jobs)
+        return Response(data, mimetype="application/pdf", headers={
+            "Content-Disposition": "attachment; filename=job_matches.pdf"
+        })
+
+    data = jobs_to_csv(jobs)
+    return Response(data, mimetype="text/csv", headers={
+        "Content-Disposition": "attachment; filename=job_matches.csv"
+    })
 
 
 if __name__ == "__main__":

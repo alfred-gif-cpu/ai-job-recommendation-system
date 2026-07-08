@@ -18,6 +18,9 @@ The system uses NLP-based skill extraction and cosine similarity to match candid
 - 🔗 Shareable results links + recent-search history
 - 🎨 Ultra-premium modern UI (glassmorphism design)
 - 📊 Match score visualization (capped at 100%)
+- 📈 "Top skills in these results" insights panel
+- ⬇️ Export your matches as CSV or PDF
+- 🛡️ Rate-limited live search to protect the Adzuna free quota
 - 🛡️ Graceful handling of empty input, non-PDF/scanned files & no-match cases
 
 ## 🛠 Tech Stack
