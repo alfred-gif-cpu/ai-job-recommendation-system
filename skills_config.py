@@ -15,6 +15,25 @@ SKILL_LIST = [
     "git", "linux", "excel", "powerbi", "tableau",
     "spark", "hadoop", "mongodb", "redis",
     "communication", "leadership", "problem solving",
+    # --- languages ---
+    "golang", "rust", "kotlin", "swift", "php", "scala", "ruby",
+    # --- frontend ---
+    "next.js", "vue", "svelte", "tailwind",
+    # --- cloud / devops ---
+    "terraform", "jenkins", "ansible", "ci/cd", "github actions",
+    # --- data engineering ---
+    "airflow", "kafka", "snowflake", "databricks",
+    # --- modern ai / ml ---
+    "keras", "opencv", "huggingface", "generative ai", "llm",
+    "computer vision", "transformers", "langchain",
+    # --- databases ---
+    "elasticsearch", "dynamodb", "sqlite", "oracle", "cassandra",
+    # --- testing ---
+    "selenium", "junit", "pytest", "cypress",
+    # --- mobile ---
+    "android", "ios", "flutter", "react native",
+    # --- other ---
+    "graphql", "microservices", "agile", "scrum", "jira", "figma", "ui/ux design",
 ]
 
 
@@ -41,6 +60,25 @@ SKILL_ALIASES = {
     "power-bi": "powerbi",
     "tensor flow": "tensorflow",
     "problem-solving": "problem solving",
+    "nextjs": "next.js",
+    "next js": "next.js",
+    "vuejs": "vue",
+    "vue.js": "vue",
+    "tailwindcss": "tailwind",
+    "tailwind css": "tailwind",
+    "ci-cd": "ci/cd",
+    "ci cd": "ci/cd",
+    "continuous integration": "ci/cd",
+    "gen ai": "generative ai",
+    "genai": "generative ai",
+    "generative-ai": "generative ai",
+    "large language model": "llm",
+    "large language models": "llm",
+    "hugging face": "huggingface",
+    "react-native": "react native",
+    "ui/ux": "ui/ux design",
+    "ux/ui": "ui/ux design",
+    "ui ux": "ui/ux design",
 }
 
 # Precompile a matcher per skill/alias. We bound each term with alphanumeric
