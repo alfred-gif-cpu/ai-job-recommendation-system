@@ -489,10 +489,17 @@ function updateInsights() {
       });
       var applyEl = c.querySelector('.apply-btn');
       var companyEl = c.querySelector('.company');
+      // company + location are rendered together as "🏢 Acme · 📍 Pune" — split them apart
+      var company = '', location = '';
+      if (companyEl) {
+        var parts = companyEl.textContent.replace('🏢', '').split('·');
+        company = parts[0].trim();
+        if (parts[1]) location = parts[1].replace('📍', '').trim();
+      }
       return {
         title: c.querySelector('.job-title') ? c.querySelector('.job-title').textContent.trim() : '',
-        company: companyEl ? companyEl.textContent.replace('🏢', '').trim() : '',
-        location: '',
+        company: company,
+        location: location,
         score: c.dataset.score || '',
         salary: c.querySelector('.salary') ? c.querySelector('.salary').textContent.replace('💰', '').trim() : '',
         skills: have.join(', '),
