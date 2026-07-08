@@ -62,9 +62,9 @@ placeholder="e.g. python, sql, machine learning">
 <div class="pane" id="pane-resume">
 <label for="resume" class="dropzone" id="dropzone">
 <span class="dz-icon">⬆️</span>
-<span class="dz-text" id="dz-text">Click to upload your resume (PDF)</span>
+<span class="dz-text" id="dz-text">Click to upload your resume (PDF or Word)</span>
 </label>
-<input type="file" id="resume" name="resume" accept=".pdf" class="hidden">
+<input type="file" id="resume" name="resume" accept=".pdf,.docx" class="hidden">
 </div>
 
 <label class="live-toggle">
@@ -228,7 +228,7 @@ document.querySelectorAll('.quick').forEach(function (q) {
 var resumeInput = document.getElementById('resume');
 if (resumeInput) {
   resumeInput.addEventListener('change', function () {
-    const name = this.files.length ? this.files[0].name : 'Click to upload your resume (PDF)';
+    const name = this.files.length ? this.files[0].name : 'Click to upload your resume (PDF or Word)';
     document.getElementById('dz-text').textContent = name;
     if (this.files.length) document.getElementById('dropzone').classList.add('filled');
   });

@@ -401,6 +401,23 @@ html.light .salary { color: #15803d; }
 .mini-chip.have { background: rgba(34,211,238,0.1); border-color: rgba(34,211,238,0.28); color: #a5f3fc; }
 .mini-chip.miss { background: transparent; border-style: dashed; color: var(--muted); }
 
+.learn-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.learn-chip:hover {
+    background: rgba(248,113,113,0.1);
+    border-color: rgba(248,113,113,0.4);
+    border-style: solid;
+    color: #fca5a5;
+    transform: translateY(-1px);
+}
+.learn-icon { font-size: 9px; opacity: 0.75; }
+
 .apply-btn {
     display: inline-block;
     margin-top: 14px;

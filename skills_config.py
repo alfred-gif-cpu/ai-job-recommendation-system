@@ -1,4 +1,5 @@
 import re
+from urllib.parse import quote_plus
 
 # -----------------------------
 # MASTER SKILL LIST
@@ -102,3 +103,14 @@ def extract_skills(text):
     text = str(text).lower()
     found = {skill for skill, pat in _PATTERNS if pat.search(text)}
     return [skill for skill in SKILL_LIST if skill in found]
+
+
+def learn_link(skill):
+    """A stable "learn this skill" link: a YouTube search for tutorials.
+
+    Generated from the skill name rather than hand-curated per-skill URLs, so
+    it can never go stale or 404 and needs no maintenance as the skill list
+    grows.
+    """
+    query = quote_plus(f"{skill} tutorial for beginners")
+    return f"https://www.youtube.com/results?search_query={query}"

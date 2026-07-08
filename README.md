@@ -6,12 +6,12 @@ The system uses NLP-based skill extraction and cosine similarity to match candid
 
 ## ✨ Features
 
-- 📄 Resume PDF upload and skill extraction
-- 🧠 NLP-based skill detection
+- 📄 Resume upload (PDF or Word .docx) and skill extraction
+- 🧠 NLP-based skill detection (92 skills incl. aliases like "ML", "k8s")
 - 🤖 AI job matching using cosine similarity
 - 🔴 Real-time job search via the Adzuna API (with safe CSV fallback)
 - 🔗 Real job titles, companies & one-click "Apply / View Job" links
-- 🎯 "Skills to Learn" gap analysis + matched/required skill meter per job
+- 🎯 "Skills to Learn" gap analysis, each linked to a tutorial search, + matched/required skill meter per job
 - 🔍 Match-breakdown tooltip on each score ring
 - 🇮🇳 India-aware recommendation ranking
 - 🌗 Dark / light theme toggle, sort & filter, "Show more" pagination

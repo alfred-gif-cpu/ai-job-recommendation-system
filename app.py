@@ -23,17 +23,21 @@ _load_env_file()
 from flask import Flask, jsonify, render_template, request
 from smart_india_recommender import recommend_jobs
 from job_api import fetch_live_jobs, INDIA_CITIES
-from skills_config import extract_skills
+from skills_config import extract_skills, learn_link
 import PyPDF2
+import docx
 
 app = Flask(__name__)
 
 # Reject oversized uploads (16 MB) instead of buffering huge files.
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+app.jinja_env.globals["learn_link"] = learn_link
+
+RESUME_EXTENSIONS = (".pdf", ".docx")
 
 
 # -----------------------------
-# PDF TEXT EXTRACTION
+# RESUME TEXT EXTRACTION
 # -----------------------------
 def extract_text_from_pdf(pdf_file):
     text = ""
@@ -44,6 +48,26 @@ def extract_text_from_pdf(pdf_file):
         text += (page.extract_text() or "") + " "
 
     return text.lower()
+
+
+def extract_text_from_docx(docx_file):
+    document = docx.Document(docx_file)
+
+    parts = [p.text for p in document.paragraphs if p.text]
+    for table in document.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                if cell.text:
+                    parts.append(cell.text)
+
+    return " ".join(parts).lower()
+
+
+def extract_text_from_resume(resume_file, filename):
+    """Dispatch to the right parser based on file extension."""
+    if filename.lower().endswith(".docx"):
+        return extract_text_from_docx(resume_file)
+    return extract_text_from_pdf(resume_file)
 
 
 def dedupe_skills(raw):
@@ -92,14 +116,14 @@ def home():
         # Resume upload flow
         if resume and resume.filename:
             resume_handled = True
-            if not resume.filename.lower().endswith(".pdf"):
-                message = "Please upload a PDF file."
+            if not resume.filename.lower().endswith(RESUME_EXTENSIONS):
+                message = "Please upload a PDF or Word (.docx) file."
             else:
                 try:
-                    text = extract_text_from_pdf(resume)
+                    text = extract_text_from_resume(resume, resume.filename)
                 except Exception:
                     text = ""
-                    message = "Sorry, we couldn't read that PDF. Try another file."
+                    message = "Sorry, we couldn't read that file. Try another one."
 
                 detected_skills = extract_skills(text)
 

@@ -36,7 +36,7 @@
 <div class="skill-section">
 <p class="label">Skills to Learn</p>
 <div class="chip-row">
-{% for s in job.missing_skills.split(',') %}{% if s.strip() %}<span class="mini-chip miss">{{ s.strip() }}</span>{% endif %}{% endfor %}
+{% for s in job.missing_skills.split(',') %}{% if s.strip() %}<a class="mini-chip miss learn-chip" href="{{ learn_link(s.strip()) }}" target="_blank" rel="noopener noreferrer" title="Watch tutorials for {{ s.strip() }}">{{ s.strip() }} <span class="learn-icon">▶</span></a>{% endif %}{% endfor %}
 </div>
 </div>
 {% endif %}
