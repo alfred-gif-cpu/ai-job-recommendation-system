@@ -10,20 +10,30 @@ from threading import Lock
 
 _lock = Lock()
 _hits = defaultdict(deque)
+_call_count = 0
 
 
 def allow(key, limit=20, window=60):
     """Return True if `key` has made fewer than `limit` calls in the last
     `window` seconds; records the call if allowed."""
+    global _call_count
     now = time.time()
     with _lock:
         q = _hits[key]
         while q and now - q[0] > window:
             q.popleft()
-        if len(q) >= limit:
-            return False
-        q.append(now)
-        return True
+        allowed = len(q) < limit
+        if allowed:
+            q.append(now)
+
+        # Periodically drop keys whose deque has emptied out, so long-running
+        # processes don't accumulate one entry per distinct caller forever.
+        _call_count += 1
+        if _call_count % 500 == 0:
+            for k in [k for k, dq in _hits.items() if not dq]:
+                del _hits[k]
+
+        return allowed
 
 
 def client_ip(request):

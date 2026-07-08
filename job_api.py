@@ -16,7 +16,7 @@ import urllib.request
 
 import semantic
 from semantic import embed, scale_similarity
-from skills_config import extract_skills
+from skills_config import extract_skills, is_remote_text
 
 SEMANTIC = semantic.available()
 
@@ -105,9 +105,17 @@ def fetch_live_jobs(user_skills, where="", limit=50, page=1):
 
     # cache lookup
     cache_key = (where.lower(), tuple(sorted(user_set)), page)
+    now_ts = time.time()
     cached = _CACHE.get(cache_key)
-    if cached and time.time() - cached[0] < _CACHE_TTL:
+    if cached and now_ts - cached[0] < _CACHE_TTL:
         return cached[1], ""
+
+    # Opportunistically drop expired entries so a long-running process doesn't
+    # accumulate one cache entry per distinct search forever.
+    if len(_CACHE) > 200:
+        expired = [k for k, (ts, _) in _CACHE.items() if now_ts - ts >= _CACHE_TTL]
+        for k in expired:
+            del _CACHE[k]
 
     query = {
         "app_id": app_id,
@@ -145,8 +153,7 @@ def fetch_live_jobs(user_skills, where="", limit=50, page=1):
     results = []
     for (job, title, desc, job_skills), sim in zip(parsed, sims):
         location = _clean((job.get("location") or {}).get("display_name"))
-        remote = "remote" in (title + " " + desc + " " + location).lower() \
-            or "work from home" in (desc + " " + location).lower()
+        remote = is_remote_text(title, desc, location)
 
         matched = job_skills & user_set
         missing = job_skills - user_set
@@ -175,7 +182,7 @@ def fetch_live_jobs(user_skills, where="", limit=50, page=1):
             "salary": _format_salary(job),
             "salary_value": salary_value,
             "link": job.get("redirect_url", ""),
-            "skills": ", ".join(sorted(job_skills)) if job_skills else "—",
+            "skills": ", ".join(sorted(job_skills)),
             "missing_skills": ", ".join(sorted(missing)),
             "summary": desc[:150],
         })

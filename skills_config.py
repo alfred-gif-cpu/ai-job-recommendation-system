@@ -105,6 +105,23 @@ def extract_skills(text):
     return [skill for skill in SKILL_LIST if skill in found]
 
 
+_REMOTE_SENSING_RE = re.compile(r"remote[\s-]*sensing")
+_WFH_RE = re.compile(r"\bwfh\b")
+
+
+def is_remote_text(*parts):
+    """Whether the given text(s) describe a remote/work-from-home job.
+
+    Uses substring matching (so "remotely", "remote-friendly" etc. still
+    count), but first strips "remote sensing" mentions — a real engineering
+    discipline (satellites/GIS) that would otherwise be mislabeled as a
+    remote-work job.
+    """
+    text = " ".join(str(p) for p in parts if p).lower()
+    text = _REMOTE_SENSING_RE.sub(" ", text)
+    return "remote" in text or "work from home" in text or bool(_WFH_RE.search(text))
+
+
 def learn_link(skill):
     """A stable "learn this skill" link: a YouTube search for tutorials.
 

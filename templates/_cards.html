@@ -25,12 +25,14 @@
 </div>
 {% endif %}
 
+{% if job.skills %}
 <div class="skill-section">
 <p class="label">Required</p>
 <div class="chip-row">
 {% for s in job.skills.split(',') %}{% if s.strip() %}<span class="mini-chip have">{{ s.strip() }}</span>{% endif %}{% endfor %}
 </div>
 </div>
+{% endif %}
 
 {% if job.missing_skills %}
 <div class="skill-section">

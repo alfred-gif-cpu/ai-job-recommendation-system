@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 import semantic
+from skills_config import is_remote_text
 
 # ===============================
 # LOAD DATASET (must match build_embeddings.py ordering)
@@ -22,7 +23,7 @@ india_keywords = [
 _summary_lower = df["job_summary"].astype(str).str.lower()
 _india_pattern = "|".join(re.escape(k) for k in india_keywords)
 df["is_india"] = _summary_lower.str.contains(_india_pattern, na=False)
-df["is_remote"] = _summary_lower.str.contains("remote|work from home", na=False)
+df["is_remote"] = _summary_lower.apply(is_remote_text)
 
 # ===============================
 # MATCHING BACKEND
@@ -32,7 +33,13 @@ SEMANTIC = semantic.available() and os.path.exists("job_embeddings.npy")
 
 if SEMANTIC:
     job_embeddings = np.load("job_embeddings.npy")
-else:
+    if job_embeddings.shape[0] != len(df):
+        # Stale embeddings (CSV changed without re-running build_embeddings.py)
+        # would silently misalign scores with the wrong rows. Fail safe by
+        # dropping back to the classic matcher instead of returning bad data.
+        SEMANTIC = False
+
+if not SEMANTIC:
     from sklearn.feature_extraction.text import CountVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
 
